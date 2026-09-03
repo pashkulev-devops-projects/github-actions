@@ -1,0 +1,67 @@
+name: 'Terraform Quality Check Workflow'
+on:
+  workflow_call:
+    inputs:
+      project_paths:
+        description: "JSON array of Terraform root project directories"
+        required: true
+        type: string
+    
+      trivy_ignore_file:
+        description: "Optional path to a Trivy YAML ignore file"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  check-terraform-quality:
+    name: Terraform Quality Checks
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_PATHS: ${{ inputs.project_paths }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+
+      - name: Set up TFLint
+        uses: terraform-linters/setup-tflint@v6
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive
+
+      - name: Run TFLint
+        run: tflint --recursive
+
+      - name: Initialize and validate Terraform projects
+        shell: bash
+        run: |
+          while IFS= read -r project_path; do
+              echo "Initializing and validating: ${project_path}"
+
+              terraform -chdir="${project_path}" init -backend=false
+              terraform -chdir="${project_path}" validate
+          done < <(echo "${PROJECT_PATHS}" | jq -r '.[]')
+  
+  terraform-security:
+    name: Terraform Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Scan Terraform misconfigurations
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          trivyignores: ${{ inputs.trivy_ignore_file }}
+          scan-type: config
+          scan-ref: .
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true
