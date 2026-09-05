@@ -26,8 +26,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v7
 
+      - name: Validate Terraform version
+        shell: bash
+        env:
+          TERRAFORM_VERSION: ${{ vars.TERRAFORM_VERSION }}
+        run: |
+          if [[ ! "$TERRAFORM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Set TERRAFORM_VERSION to an exact release version, for example 1.15.8."
+            exit 1
+          fi
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
+        with:
+            terraform_version: ${{ vars.TERRAFORM_VERSION }}
 
       - name: Set up TFLint
         uses: terraform-linters/setup-tflint@v6
