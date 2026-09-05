@@ -87,6 +87,11 @@ runs:
         PLAN_FILE: ${{ steps.plan.outputs.plan_file }}
       run: terraform apply -input=false -lock-timeout=5m "$PLAN_FILE"
 
+    - name: Skip Terraform Apply Notice
+      if: ${{ inputs.should_apply == 'false' }}
+      shell: bash
+      run: echo "Skipping terraform apply as requested."
+
     - name: Remove saved plan
       if: ${{ always() && steps.plan.outputs.plan_file != '' }}
       shell: bash
