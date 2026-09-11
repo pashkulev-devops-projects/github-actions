@@ -1,0 +1,59 @@
+name: Bootstrap WireGuard key
+description: Create or reuse a private key and derive its public key.
+
+inputs:
+  github_token:
+    description: Token with repository Secrets read/write permission.
+    required: true
+  private_key:
+    description: Existing private key, empty on first run.
+    default: ""
+  secret_name:
+    description: Repository secret used to store the private key.
+    default: WIREGUARD_RUNNER_PRIVATE_KEY
+
+outputs:
+  public_key:
+    description: Derived WireGuard public key.
+    value: ${{ steps.key.outputs.public_key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install WireGuard tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wireguard-tools
+
+    - name: Create or reuse WireGuard key
+      id: key
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        PRIVATE_KEY: ${{ inputs.private_key }}
+        SECRET_NAME: ${{ inputs.secret_name }}
+      run: |
+        if [[ -z "$PRIVATE_KEY" ]]; then
+          secret_names=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/secrets" \
+            --jq '.secrets[].name')
+
+          if grep -Fxiq -- "$SECRET_NAME" <<< "$secret_names"; then
+            echo "::error::The secret exists but its value was not supplied. Refusing to replace it."
+            exit 1
+          fi
+
+          PRIVATE_KEY=$(wg genkey)
+          printf '::add-mask::%s\n' "$PRIVATE_KEY"
+
+          printf '%s' "$PRIVATE_KEY" |
+            gh secret set "$SECRET_NAME" --repo "$GITHUB_REPOSITORY"
+
+          echo "Created WireGuard private-key secret."
+        else
+          echo "Reusing existing WireGuard private key."
+        fi
+
+        public_key=$(printf '%s\n' "$PRIVATE_KEY" | wg pubkey)
+        printf 'public_key=%s\n' "$public_key" >> "$GITHUB_OUTPUT"

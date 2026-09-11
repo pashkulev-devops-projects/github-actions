@@ -1,5 +1,6 @@
 name: Run Terraform
 description: Initialize, plan, and optionally apply a Terraform root.
+author: ivan.pashkulev@gmail.com
 
 inputs:
   working_directory:
