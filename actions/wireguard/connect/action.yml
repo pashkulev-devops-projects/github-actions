@@ -1,0 +1,71 @@
+name: Connect WireGuard client
+description: Configure a GitHub-hosted runner as a WireGuard client.
+
+inputs:
+  private_key:
+    description: WireGuard private key belonging to the runner.
+    required: true
+  server_public_key:
+    description: WireGuard public key belonging to the server.
+    required: true
+  server_endpoint:
+    description: Public IPv4 address or hostname of the WireGuard server.
+    required: true
+  server_port:
+    description: WireGuard server UDP port.
+    default: "51820"
+  client_address:
+    description: Private CIDR assigned to the runner.
+    default: 10.100.0.2/32
+  allowed_ips:
+    description: Private CIDRs routed through WireGuard.
+    default: 10.100.0.1/32
+
+outputs:
+  configuration_file:
+    description: Generated configuration path used for disconnecting.
+    value: ${{ steps.connect.outputs.configuration_file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install WireGuard tools
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wireguard-tools
+
+    - name: Configure and connect WireGuard
+      id: connect
+      shell: bash
+      env:
+        PRIVATE_KEY: ${{ inputs.private_key }}
+        SERVER_PUBLIC_KEY: ${{ inputs.server_public_key }}
+        SERVER_ENDPOINT: ${{ inputs.server_endpoint }}
+        SERVER_PORT: ${{ inputs.server_port }}
+        CLIENT_ADDRESS: ${{ inputs.client_address }}
+        ALLOWED_IPS: ${{ inputs.allowed_ips }}
+      run: |
+        if [[ -z "$PRIVATE_KEY" || -z "$SERVER_PUBLIC_KEY" || -z "$SERVER_ENDPOINT" ]]; then
+          echo "::error::WireGuard private key, server public key and endpoint are required."
+          exit 1
+        fi
+
+        printf '::add-mask::%s\n' "$PRIVATE_KEY"
+
+        configuration_file="$RUNNER_TEMP/wg0.conf"
+        umask 077
+
+        {
+          printf '[Interface]\n'
+          printf 'PrivateKey = %s\n' "$PRIVATE_KEY"
+          printf 'Address = %s\n\n' "$CLIENT_ADDRESS"
+          printf '[Peer]\n'
+          printf 'PublicKey = %s\n' "$SERVER_PUBLIC_KEY"
+          printf 'Endpoint = %s:%s\n' "$SERVER_ENDPOINT" "$SERVER_PORT"
+          printf 'AllowedIPs = %s\n' "$ALLOWED_IPS"
+          printf 'PersistentKeepalive = 25\n'
+        } > "$configuration_file"
+
+        printf 'configuration_file=%s\n' "$configuration_file" >> "$GITHUB_OUTPUT"
+        sudo wg-quick up "$configuration_file"
