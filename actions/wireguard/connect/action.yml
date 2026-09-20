@@ -21,11 +21,6 @@ inputs:
     description: Private CIDRs routed through WireGuard.
     default: 10.100.0.1/32
 
-outputs:
-  configuration_file:
-    description: Generated configuration path used for disconnecting.
-    value: ${{ steps.connect.outputs.configuration_file }}
-
 runs:
   using: composite
   steps:
@@ -53,8 +48,8 @@ runs:
 
         printf '::add-mask::%s\n' "$PRIVATE_KEY"
 
-        configuration_file="$RUNNER_TEMP/wg0.conf"
-        umask 077
+        configuration_file="/etc/wireguard/wg0.conf"
+        sudo install -d -m 700 /etc/wireguard
 
         {
           printf '[Interface]\n'
@@ -65,7 +60,8 @@ runs:
           printf 'Endpoint = %s:%s\n' "$SERVER_ENDPOINT" "$SERVER_PORT"
           printf 'AllowedIPs = %s\n' "$ALLOWED_IPS"
           printf 'PersistentKeepalive = 25\n'
-        } > "$configuration_file"
+        } | sudo tee "$configuration_file" > /dev/null
 
-        printf 'configuration_file=%s\n' "$configuration_file" >> "$GITHUB_OUTPUT"
-        sudo wg-quick up "$configuration_file"
+        sudo chmod 600 "$configuration_file"
+
+        sudo wg-quick up wg0
