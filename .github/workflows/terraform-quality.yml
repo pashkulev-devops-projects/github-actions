@@ -62,7 +62,7 @@ jobs:
   
   terraform-security:
     name: Terraform Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
