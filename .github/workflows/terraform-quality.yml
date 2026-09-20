@@ -19,7 +19,7 @@ permissions:
 jobs:
   check-terraform-quality:
     name: Terraform Quality Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       PROJECT_PATHS: ${{ inputs.project_paths }}
     steps:
