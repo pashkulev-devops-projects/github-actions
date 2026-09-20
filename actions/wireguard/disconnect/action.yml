@@ -1,0 +1,14 @@
+name: Disconnect WireGuard client
+description: Disconnect the GitHub-hosted runner from WireGuard and remove its configuration.
+
+runs:
+  using: composite
+  steps:
+    - name: Disconnect WireGuard
+      shell: bash
+      run: |
+        if sudo wg show wg0 > /dev/null 2>&1; then
+          sudo wg-quick down wg0
+        fi
+
+        sudo rm -f -- /etc/wireguard/wg0.conf
